@@ -17,21 +17,27 @@ renderer.toneMappingExposure = 1.0;
 
 // ── Scene ──
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x1a1a2e);
+scene.background = new THREE.Color(0xd0ccc8);
 
-// ── Camera ──
-const camera = new THREE.PerspectiveCamera(
-	45,
-	window.innerWidth / window.innerHeight,
+// ── Camera (Orthographic) ──
+const frustumSize = 3;
+const aspect = window.innerWidth / window.innerHeight;
+const camera = new THREE.OrthographicCamera(
+	(-frustumSize * aspect) / 2,
+	(frustumSize * aspect) / 2,
+	frustumSize / 2,
+	-frustumSize / 2,
 	0.1,
 	100,
 );
-camera.position.set(0, 1.5, 4);
+camera.position.set(0, 0, 15);
+camera.zoom = 1.8;
+camera.updateProjectionMatrix();
 
 // ── Lighting ──
-scene.add(new THREE.AmbientLight(0xffffff, 0.5));
-const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
-dirLight.position.set(5, 5, 5);
+scene.add(new THREE.AmbientLight(0xffffff, 1.85));
+const dirLight = new THREE.DirectionalLight(0xffffff, 4.2);
+dirLight.position.set(17, 10, 0);
 scene.add(dirLight);
 
 // ── Environment map ──
@@ -42,20 +48,22 @@ scene.environment = pmremGenerator.fromScene(envScene).texture;
 
 // ── Glass material ──
 const glassMaterial = new THREE.MeshPhysicalMaterial({
-	transmission: 1.0,
-	roughness: 0.05,
-	thickness: 0.5,
-	ior: 1.5,
+	transmission: 1,
+	roughness: 0.24,
+	thickness: 0,
+	ior: 2.5,
 	envMapIntensity: 1.0,
 	color: new THREE.Color(0xffffff),
+	metalness: 0,
 	transparent: true,
 });
 
 const materialParams = {
-	transmission: 1.0,
-	roughness: 0.05,
-	thickness: 0.5,
-	ior: 1.5,
+	transmission: 1,
+	roughness: 0.24,
+	thickness: 0,
+	ior: 2.5,
+	metalness: 0,
 	color: "#ffffff",
 };
 
@@ -63,11 +71,11 @@ const materialParams = {
 const turntableParams = {
 	radius: 1.5,
 	interval: 3.0,
-	transitionDuration: 0.8,
+	transitionDuration: 2.0,
 };
 
 const bgParams = {
-	color: "#1a1a2e",
+	color: "#d0ccc8",
 };
 
 // ── Per-mesh rotation params (degrees) ──
@@ -195,11 +203,38 @@ ttFolder
 	.add(turntableParams, "transitionDuration", 0.2, 2, 0.05)
 	.name("Transition (s)");
 
+const lightParams = {
+	ambIntensity: 1.85,
+	dirIntensity: 4.2,
+	dirX: dirLight.position.x,
+	dirY: dirLight.position.y,
+	dirZ: dirLight.position.z,
+};
+const lightFolder = gui.addFolder("Light");
+lightFolder
+	.add(lightParams, "ambIntensity", 0, 3, 0.05)
+	.name("Ambient")
+	.onChange((v) => {
+		scene.children.find((c) => c.isAmbientLight).intensity = v;
+	});
+lightFolder
+	.add(lightParams, "dirIntensity", 0, 5, 0.1)
+	.name("Dir Intensity")
+	.onChange((v) => {
+		dirLight.intensity = v;
+	});
+const updateDirPos = () => {
+	dirLight.position.set(lightParams.dirX, lightParams.dirY, lightParams.dirZ);
+};
+lightFolder.add(lightParams, "dirX", -20, 20, 0.5).name("Dir X").onChange(updateDirPos);
+lightFolder.add(lightParams, "dirY", -20, 20, 0.5).name("Dir Y").onChange(updateDirPos);
+lightFolder.add(lightParams, "dirZ", -20, 20, 0.5).name("Dir Z").onChange(updateDirPos);
+
 const camParams = {
-	posX: camera.position.x,
-	posY: camera.position.y,
-	posZ: camera.position.z,
-	fov: camera.fov,
+	posX: 0,
+	posY: 0,
+	posZ: 15,
+	zoom: 1.8,
 };
 const camFolder = gui.addFolder("Camera");
 const updateCam = () => {
@@ -209,10 +244,10 @@ camFolder.add(camParams, "posX", -20, 20, 0.1).name("X").onChange(updateCam);
 camFolder.add(camParams, "posY", -20, 20, 0.1).name("Y").onChange(updateCam);
 camFolder.add(camParams, "posZ", -20, 20, 0.1).name("Z").onChange(updateCam);
 camFolder
-	.add(camParams, "fov", 10, 120, 1)
-	.name("FOV")
+	.add(camParams, "zoom", 0.1, 5, 0.05)
+	.name("Zoom")
 	.onChange((v) => {
-		camera.fov = v;
+		camera.zoom = v;
 		camera.updateProjectionMatrix();
 	});
 
@@ -229,15 +264,36 @@ matFolder.add(materialParams, "thickness", 0, 5, 0.01).onChange((v) => {
 matFolder.add(materialParams, "ior", 1, 2.5, 0.01).onChange((v) => {
 	glassMaterial.ior = v;
 });
+matFolder.add(materialParams, "metalness", 0, 1, 0.01).onChange((v) => {
+	glassMaterial.metalness = v;
+});
 matFolder.addColor(materialParams, "color").onChange((v) => {
 	glassMaterial.color.set(v);
 });
+materialParams.blending = THREE.NormalBlending;
+matFolder
+	.add(materialParams, "blending", {
+		No: THREE.NoBlending,
+		Normal: THREE.NormalBlending,
+		Additive: THREE.AdditiveBlending,
+		Subtractive: THREE.SubtractiveBlending,
+		Multiply: THREE.MultiplyBlending,
+	})
+	.name("Blending")
+	.onChange((v) => {
+		glassMaterial.blending = Number(v);
+		glassMaterial.needsUpdate = true;
+	});
 
 // ── Resize ──
 window.addEventListener("resize", () => {
 	const w = window.innerWidth;
 	const h = window.innerHeight;
-	camera.aspect = w / h;
+	const a = w / h;
+	camera.left = (-frustumSize * a) / 2;
+	camera.right = (frustumSize * a) / 2;
+	camera.top = frustumSize / 2;
+	camera.bottom = -frustumSize / 2;
 	camera.updateProjectionMatrix();
 	renderer.setSize(w, h);
 });
@@ -259,7 +315,7 @@ function animate() {
 
 	if (!isTransitioning && timeSinceSwitch >= turntableParams.interval) {
 		currentIndex = (currentIndex + 1) % MESH_COUNT;
-		targetAngle = -(currentIndex * TWO_PI_THIRD);
+		targetAngle -= TWO_PI_THIRD; // always rotate in the same direction
 		prevAngle = currentAngle;
 		lastSwitchTime = elapsed;
 		isTransitioning = true;
