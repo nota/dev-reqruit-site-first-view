@@ -1,192 +1,285 @@
-import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import Stats from 'three/addons/libs/stats.module.js';
-import GUI from 'lil-gui';
-import { createGrainientBackground, grainientParams } from './grainient.js';
+import GUI from "lil-gui";
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 
-// Renderer
-const canvas = document.getElementById('canvas');
+// ── Constants ──
+const MESH_COUNT = 3;
+const TWO_PI_THIRD = (2 * Math.PI) / 3;
+
+// ── Renderer ──
+const canvas = document.getElementById("canvas");
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
 
-// Main scene
+// ── Scene ──
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+scene.background = new THREE.Color(0x1a1a2e);
+
+// ── Camera ──
+const camera = new THREE.PerspectiveCamera(
+	45,
+	window.innerWidth / window.innerHeight,
+	0.1,
+	100,
+);
 camera.position.set(0, 1.5, 4);
 
-// Background – render Grainient to a texture so it works as scene.background
-// (required for MeshPhysicalMaterial transmission to see the background)
-const bg = createGrainientBackground();
-const bgRenderTarget = new THREE.WebGLRenderTarget(
-  window.innerWidth * renderer.getPixelRatio(),
-  window.innerHeight * renderer.getPixelRatio()
-);
-scene.background = bgRenderTarget.texture;
-
-// Lighting
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-scene.add(ambientLight);
-
+// ── Lighting ──
+scene.add(new THREE.AmbientLight(0xffffff, 0.5));
 const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
 dirLight.position.set(5, 5, 5);
 scene.add(dirLight);
 
-// Environment map for reflections/refractions
+// ── Environment map ──
 const pmremGenerator = new THREE.PMREMGenerator(renderer);
 const envScene = new THREE.Scene();
 envScene.background = new THREE.Color(0x888888);
-const envMap = pmremGenerator.fromScene(envScene).texture;
-scene.environment = envMap;
+scene.environment = pmremGenerator.fromScene(envScene).texture;
 
-// Glass material
+// ── Glass material ──
 const glassMaterial = new THREE.MeshPhysicalMaterial({
-  transmission: 1.0,
-  roughness: 0.05,
-  thickness: 0.5,
-  ior: 1.5,
-  envMapIntensity: 1.0,
-  color: new THREE.Color(0xffffff),
-  transparent: true,
+	transmission: 1.0,
+	roughness: 0.05,
+	thickness: 0.5,
+	ior: 1.5,
+	envMapIntensity: 1.0,
+	color: new THREE.Color(0xffffff),
+	transparent: true,
 });
 
 const materialParams = {
-  transmission: 1.0,
-  roughness: 0.05,
-  thickness: 0.5,
-  ior: 1.5,
-  color: '#ffffff',
-  blending: 0,
+	transmission: 1.0,
+	roughness: 0.05,
+	thickness: 0.5,
+	ior: 1.5,
+	color: "#ffffff",
 };
 
-// Load GLB
-let modelGroup = null;
+// ── Turntable params ──
+const turntableParams = {
+	radius: 1.5,
+	interval: 3.0,
+	transitionDuration: 0.8,
+};
+
+const bgParams = {
+	color: "#1a1a2e",
+};
+
+// ── Per-mesh rotation params (degrees) ──
+const meshRotations = [
+	{ rotX: 0, rotY: 0, rotZ: 0 },
+	{ rotX: 0, rotY: 120, rotZ: 0 },
+	{ rotX: 0, rotY: -32, rotZ: 90 },
+];
+
+// ── Turntable state ──
+const turntable = new THREE.Group();
+scene.add(turntable);
+
+let currentIndex = 0;
+let targetAngle = 0;
+let currentAngle = 0;
+let prevAngle = 0;
+let lastSwitchTime = 0;
+let isTransitioning = false;
+const meshes = [];
+
+// ── Normalize a mesh: center geometry & uniform scale ──
+function normalizeMesh(mesh) {
+	const geo = mesh.geometry;
+	geo.computeBoundingBox();
+	const box = geo.boundingBox;
+	const center = box.getCenter(new THREE.Vector3());
+	geo.translate(-center.x, -center.y, -center.z);
+
+	const size = box.getSize(new THREE.Vector3());
+	const maxDim = Math.max(size.x, size.y, size.z);
+	if (maxDim > 0) {
+		const s = 1.0 / maxDim;
+		mesh.scale.setScalar(s);
+	}
+}
+
+// ── Place meshes on the turntable circle ──
+function arrangeMeshes() {
+	const R = turntableParams.radius;
+	meshes.forEach((mesh, i) => {
+		const angle = i * TWO_PI_THIRD;
+		mesh.position.set(Math.sin(angle) * R, 0, Math.cos(angle) * R);
+	});
+}
+
+// ── Load GLB ──
 const loader = new GLTFLoader();
 loader.load(
-  'merge.glb',
-  (gltf) => {
-    modelGroup = gltf.scene;
-    modelGroup.traverse((child) => {
-      if (child.isMesh) {
-        child.material = glassMaterial;
-      }
-    });
+	"merge2.glb",
+	(gltf) => {
+		const root = gltf.scene;
+		// Collect direct child meshes
+		root.children.forEach((child) => {
+			if (child.isMesh && meshes.length < MESH_COUNT) {
+				meshes.push(child);
+			}
+		});
+		// If meshes are nested deeper, traverse
+		if (meshes.length < MESH_COUNT) {
+			root.traverse((child) => {
+				if (
+					child.isMesh &&
+					!meshes.includes(child) &&
+					meshes.length < MESH_COUNT
+				) {
+					meshes.push(child);
+				}
+			});
+		}
 
-    // Center model
-    const box = new THREE.Box3().setFromObject(modelGroup);
-    const center = box.getCenter(new THREE.Vector3());
-    const size = box.getSize(new THREE.Vector3());
-    modelGroup.position.sub(center);
+		// Normalize, apply material, add to turntable
+		meshes.forEach((mesh) => {
+			mesh.removeFromParent();
+			normalizeMesh(mesh);
+			mesh.material = glassMaterial;
+			turntable.add(mesh);
+		});
 
-    const maxDim = Math.max(size.x, size.y, size.z);
-    if (maxDim > 0) {
-      const scale = 2.0 / maxDim;
-      modelGroup.scale.setScalar(scale);
-    }
+		arrangeMeshes();
 
-    scene.add(modelGroup);
-  },
-  undefined,
-  (error) => console.error('Error loading GLB:', error)
+		// Build per-mesh rotation GUI folders
+		meshes.forEach((mesh, i) => {
+			const folder = gui.addFolder(`Mesh ${i} Rotation`);
+			const rot = meshRotations[i];
+			const deg = THREE.MathUtils.degToRad;
+			const update = () => {
+				mesh.rotation.set(deg(rot.rotX), deg(rot.rotY), deg(rot.rotZ));
+			};
+			folder.add(rot, "rotX", -180, 180, 1).name("X°").onChange(update);
+			folder.add(rot, "rotY", -180, 180, 1).name("Y°").onChange(update);
+			folder.add(rot, "rotZ", -180, 180, 1).name("Z°").onChange(update);
+			update(); // apply initial rotation
+		});
+
+		console.log(`Loaded ${meshes.length} meshes from merge2.glb`);
+	},
+	undefined,
+	(error) => console.error("Error loading GLB:", error),
 );
 
-// Controls
+// ── Controls ──
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.05;
 controls.target.set(0, 0, 0);
 
-// Stats
-const stats = new Stats();
-document.body.appendChild(stats.dom);
-
-// GUI
+// ── GUI ──
 const gui = new GUI();
 
-const grainFolder = gui.addFolder('Grainient');
-grainFolder.add(grainientParams, 'timeSpeed', 0, 2, 0.01);
-grainFolder.add(grainientParams, 'colorBalance', -1, 1, 0.01);
-grainFolder.add(grainientParams, 'warpStrength', 0.01, 5, 0.01);
-grainFolder.add(grainientParams, 'warpFrequency', 0, 20, 0.1);
-grainFolder.add(grainientParams, 'warpSpeed', 0, 10, 0.1);
-grainFolder.add(grainientParams, 'warpAmplitude', 1, 200, 1);
-grainFolder.add(grainientParams, 'blendAngle', -180, 180, 1);
-grainFolder.add(grainientParams, 'blendSoftness', 0, 1, 0.01);
-grainFolder.add(grainientParams, 'rotationAmount', 0, 1000, 1);
-grainFolder.add(grainientParams, 'noiseScale', 0.1, 10, 0.1);
-grainFolder.add(grainientParams, 'grainAmount', 0, 1, 0.01);
-grainFolder.add(grainientParams, 'grainScale', 0.1, 10, 0.1);
-grainFolder.add(grainientParams, 'grainAnimated');
-grainFolder.add(grainientParams, 'contrast', 0.1, 3, 0.01);
-grainFolder.add(grainientParams, 'gamma', 0.1, 3, 0.01);
-grainFolder.add(grainientParams, 'saturation', 0, 3, 0.01);
-grainFolder.add(grainientParams, 'centerX', -1, 1, 0.01);
-grainFolder.add(grainientParams, 'centerY', -1, 1, 0.01);
-grainFolder.add(grainientParams, 'zoom', 0.1, 3, 0.01);
-grainFolder.addColor(grainientParams, 'color1');
-grainFolder.addColor(grainientParams, 'color2');
-grainFolder.addColor(grainientParams, 'color3');
-
-const matFolder = gui.addFolder('Material');
-matFolder.add(materialParams, 'transmission', 0, 1, 0.01).onChange((v) => { glassMaterial.transmission = v; });
-matFolder.add(materialParams, 'roughness', 0, 1, 0.01).onChange((v) => { glassMaterial.roughness = v; });
-matFolder.add(materialParams, 'thickness', 0, 5, 0.01).onChange((v) => { glassMaterial.thickness = v; });
-matFolder.add(materialParams, 'ior', 1, 2.5, 0.01).onChange((v) => { glassMaterial.ior = v; });
-matFolder.addColor(materialParams, 'color').onChange((v) => { glassMaterial.color.set(v); });
-matFolder.add(materialParams, 'blending', { None: 0, Normal: 1, Additive: 2, Subtractive: 3, Multiply: 4 }).onChange((v) => {
-  glassMaterial.blending = Number(v);
-  glassMaterial.needsUpdate = true;
+const bgFolder = gui.addFolder("Background");
+bgFolder.addColor(bgParams, "color").onChange((v) => {
+	scene.background.set(v);
 });
 
-// Resize
-window.addEventListener('resize', () => {
-  const w = window.innerWidth;
-  const h = window.innerHeight;
-  camera.aspect = w / h;
-  camera.updateProjectionMatrix();
-  renderer.setSize(w, h);
-  const pw = w * renderer.getPixelRatio();
-  const ph = h * renderer.getPixelRatio();
-  bg.uniforms.iResolution.value.set(pw, ph);
-  bgRenderTarget.setSize(pw, ph);
+const ttFolder = gui.addFolder("Turntable");
+ttFolder.add(turntableParams, "interval", 1, 10, 0.1).name("Interval (s)");
+ttFolder
+	.add(turntableParams, "radius", 0.5, 5, 0.1)
+	.name("Radius")
+	.onChange(() => {
+		arrangeMeshes();
+	});
+ttFolder
+	.add(turntableParams, "transitionDuration", 0.2, 2, 0.05)
+	.name("Transition (s)");
+
+const camParams = {
+	posX: camera.position.x,
+	posY: camera.position.y,
+	posZ: camera.position.z,
+	fov: camera.fov,
+};
+const camFolder = gui.addFolder("Camera");
+const updateCam = () => {
+	camera.position.set(camParams.posX, camParams.posY, camParams.posZ);
+};
+camFolder.add(camParams, "posX", -20, 20, 0.1).name("X").onChange(updateCam);
+camFolder.add(camParams, "posY", -20, 20, 0.1).name("Y").onChange(updateCam);
+camFolder.add(camParams, "posZ", -20, 20, 0.1).name("Z").onChange(updateCam);
+camFolder
+	.add(camParams, "fov", 10, 120, 1)
+	.name("FOV")
+	.onChange((v) => {
+		camera.fov = v;
+		camera.updateProjectionMatrix();
+	});
+
+const matFolder = gui.addFolder("Material");
+matFolder.add(materialParams, "transmission", 0, 1, 0.01).onChange((v) => {
+	glassMaterial.transmission = v;
+});
+matFolder.add(materialParams, "roughness", 0, 1, 0.01).onChange((v) => {
+	glassMaterial.roughness = v;
+});
+matFolder.add(materialParams, "thickness", 0, 5, 0.01).onChange((v) => {
+	glassMaterial.thickness = v;
+});
+matFolder.add(materialParams, "ior", 1, 2.5, 0.01).onChange((v) => {
+	glassMaterial.ior = v;
+});
+matFolder.addColor(materialParams, "color").onChange((v) => {
+	glassMaterial.color.set(v);
 });
 
-// Set initial resolution
-bg.uniforms.iResolution.value.set(
-  window.innerWidth * renderer.getPixelRatio(),
-  window.innerHeight * renderer.getPixelRatio()
-);
+// ── Resize ──
+window.addEventListener("resize", () => {
+	const w = window.innerWidth;
+	const h = window.innerHeight;
+	camera.aspect = w / h;
+	camera.updateProjectionMatrix();
+	renderer.setSize(w, h);
+});
 
-// Animation loop
+// ── EaseInOutQuad ──
+function easeInOutQuad(t) {
+	return t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
+}
+
+// ── Animation loop ──
 const clock = new THREE.Clock();
 
 function animate() {
-  requestAnimationFrame(animate);
-  const elapsed = clock.getElapsedTime();
+	requestAnimationFrame(animate);
+	const elapsed = clock.getElapsedTime();
 
-  // Update background uniforms
-  bg.uniforms.iTime.value = elapsed;
-  bg.syncUniforms();
+	// Turntable rotation logic
+	const timeSinceSwitch = elapsed - lastSwitchTime;
 
-  // Rotate model
-  if (modelGroup) {
-    modelGroup.rotation.y = elapsed * 0.3;
-  }
+	if (!isTransitioning && timeSinceSwitch >= turntableParams.interval) {
+		currentIndex = (currentIndex + 1) % MESH_COUNT;
+		targetAngle = -(currentIndex * TWO_PI_THIRD);
+		prevAngle = currentAngle;
+		lastSwitchTime = elapsed;
+		isTransitioning = true;
+	}
 
-  controls.update();
+	if (isTransitioning) {
+		const tElapsed = elapsed - lastSwitchTime;
+		const t = Math.min(tElapsed / turntableParams.transitionDuration, 1);
+		const eased = easeInOutQuad(t);
+		currentAngle = prevAngle + (targetAngle - prevAngle) * eased;
+		if (t >= 1) {
+			currentAngle = targetAngle;
+			isTransitioning = false;
+		}
+	}
 
-  // Render Grainient background to texture
-  renderer.setRenderTarget(bgRenderTarget);
-  renderer.render(bg.scene, bg.camera);
-  renderer.setRenderTarget(null);
+	turntable.rotation.y = currentAngle;
 
-  // Draw main scene (background comes from scene.background = bgRenderTarget.texture)
-  renderer.render(scene, camera);
-
-  stats.update();
+	controls.update();
+	renderer.render(scene, camera);
 }
 
 animate();
