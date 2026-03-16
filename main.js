@@ -17,7 +17,7 @@ renderer.toneMappingExposure = 1.0;
 
 // ── Scene ──
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xd0ccc8);
+scene.background = new THREE.Color(0xffffff);
 
 // ── Camera (Orthographic) ──
 const frustumSize = 3;
@@ -48,23 +48,22 @@ scene.environment = pmremGenerator.fromScene(envScene).texture;
 
 // ── Glass material ──
 const glassMaterial = new THREE.MeshPhysicalMaterial({
-	transmission: 1,
-	roughness: 0.24,
+	transmission: 0,
+	roughness: 0,
 	thickness: 0,
-	ior: 2.5,
+	ior: 1,
 	envMapIntensity: 1.0,
-	color: new THREE.Color(0xffffff),
-	metalness: 0,
-	transparent: true,
+	color: new THREE.Color(0x000000),
+	metalness: 1,
 });
 
 const materialParams = {
-	transmission: 1,
-	roughness: 0.24,
+	transmission: 0,
+	roughness: 0,
 	thickness: 0,
-	ior: 2.5,
-	metalness: 0,
-	color: "#ffffff",
+	ior: 1,
+	metalness: 1,
+	color: "#000000",
 };
 
 // ── Turntable params ──
@@ -75,7 +74,7 @@ const turntableParams = {
 };
 
 const bgParams = {
-	color: "#d0ccc8",
+	color: "#ffffff",
 };
 
 // ── Per-mesh rotation params (degrees) ──
