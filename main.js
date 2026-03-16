@@ -68,13 +68,21 @@ const materialParams = {
 
 // ── Turntable params ──
 const turntableParams = {
-	radius: 1.5,
+	radius: 0.5,
 	interval: 3.0,
 	transitionDuration: 2.0,
 };
 
 const bgParams = {
 	color: "#ffffff",
+};
+
+// ── Aerial perspective params ──
+const aerialParams = {
+	enabled: true,
+	backOpacity: 0.15, // opacity for the most distant mesh
+	fadeColor: "#ffffff", // color to lerp toward (usually background)
+	fadeAmount: 0.7, // how much to lerp color toward fadeColor (0=none, 1=full)
 };
 
 // ── Per-mesh rotation params (degrees) ──
@@ -95,6 +103,7 @@ let prevAngle = 0;
 let lastSwitchTime = 0;
 let isTransitioning = false;
 const meshes = [];
+const meshMaterials = []; // per-mesh cloned materials
 
 // ── Normalize a mesh: center geometry & uniform scale ──
 function normalizeMesh(mesh) {
@@ -146,11 +155,14 @@ loader.load(
 			});
 		}
 
-		// Normalize, apply material, add to turntable
+		// Normalize, apply cloned material, add to turntable
 		meshes.forEach((mesh) => {
 			mesh.removeFromParent();
 			normalizeMesh(mesh);
-			mesh.material = glassMaterial;
+			const mat = glassMaterial.clone();
+			mat.transparent = true;
+			mesh.material = mat;
+			meshMaterials.push(mat);
 			turntable.add(mesh);
 		});
 
@@ -225,9 +237,18 @@ lightFolder
 const updateDirPos = () => {
 	dirLight.position.set(lightParams.dirX, lightParams.dirY, lightParams.dirZ);
 };
-lightFolder.add(lightParams, "dirX", -20, 20, 0.5).name("Dir X").onChange(updateDirPos);
-lightFolder.add(lightParams, "dirY", -20, 20, 0.5).name("Dir Y").onChange(updateDirPos);
-lightFolder.add(lightParams, "dirZ", -20, 20, 0.5).name("Dir Z").onChange(updateDirPos);
+lightFolder
+	.add(lightParams, "dirX", -20, 20, 0.5)
+	.name("Dir X")
+	.onChange(updateDirPos);
+lightFolder
+	.add(lightParams, "dirY", -20, 20, 0.5)
+	.name("Dir Y")
+	.onChange(updateDirPos);
+lightFolder
+	.add(lightParams, "dirZ", -20, 20, 0.5)
+	.name("Dir Z")
+	.onChange(updateDirPos);
 
 const camParams = {
 	posX: 0,
@@ -250,24 +271,30 @@ camFolder
 		camera.updateProjectionMatrix();
 	});
 
+// Helper: apply a change to glassMaterial + all clones
+function forAllMats(fn) {
+	fn(glassMaterial);
+	meshMaterials.forEach(fn);
+}
+
 const matFolder = gui.addFolder("Material");
 matFolder.add(materialParams, "transmission", 0, 1, 0.01).onChange((v) => {
-	glassMaterial.transmission = v;
+	forAllMats((m) => (m.transmission = v));
 });
 matFolder.add(materialParams, "roughness", 0, 1, 0.01).onChange((v) => {
-	glassMaterial.roughness = v;
+	forAllMats((m) => (m.roughness = v));
 });
 matFolder.add(materialParams, "thickness", 0, 5, 0.01).onChange((v) => {
-	glassMaterial.thickness = v;
+	forAllMats((m) => (m.thickness = v));
 });
 matFolder.add(materialParams, "ior", 1, 2.5, 0.01).onChange((v) => {
-	glassMaterial.ior = v;
+	forAllMats((m) => (m.ior = v));
 });
 matFolder.add(materialParams, "metalness", 0, 1, 0.01).onChange((v) => {
-	glassMaterial.metalness = v;
+	forAllMats((m) => (m.metalness = v));
 });
 matFolder.addColor(materialParams, "color").onChange((v) => {
-	glassMaterial.color.set(v);
+	forAllMats((m) => m.color.set(v));
 });
 materialParams.blending = THREE.NormalBlending;
 matFolder
@@ -280,9 +307,17 @@ matFolder
 	})
 	.name("Blending")
 	.onChange((v) => {
-		glassMaterial.blending = Number(v);
-		glassMaterial.needsUpdate = true;
+		forAllMats((m) => {
+			m.blending = Number(v);
+			m.needsUpdate = true;
+		});
 	});
+
+const aerialFolder = gui.addFolder("Aerial Perspective");
+aerialFolder.add(aerialParams, "enabled");
+aerialFolder.add(aerialParams, "backOpacity", 0, 1, 0.01).name("Back Opacity");
+aerialFolder.addColor(aerialParams, "fadeColor").name("Fade Color");
+aerialFolder.add(aerialParams, "fadeAmount", 0, 1, 0.01).name("Fade Amount");
 
 // ── Resize ──
 window.addEventListener("resize", () => {
@@ -332,6 +367,29 @@ function animate() {
 	}
 
 	turntable.rotation.y = currentAngle;
+
+	// ── Aerial perspective: fade non-front meshes ──
+	if (aerialParams.enabled && meshMaterials.length === MESH_COUNT) {
+		const baseColor = new THREE.Color(materialParams.color);
+		const fadeColor = new THREE.Color(aerialParams.fadeColor);
+		const rotY = turntable.rotation.y;
+
+		for (let i = 0; i < MESH_COUNT; i++) {
+			// Each mesh's angle on the turntable circle
+			const meshAngle = i * TWO_PI_THIRD + rotY;
+			// cos gives how "front-facing" it is (1 = front, -1 = back)
+			const frontness = Math.cos(meshAngle);
+			// Remap from [-1, 1] to [0, 1] where 1 = fully front
+			const t = (frontness + 1) / 2;
+
+			const mat = meshMaterials[i];
+			// Opacity: lerp between backOpacity and 1
+			mat.opacity = THREE.MathUtils.lerp(aerialParams.backOpacity, 1, t);
+			// Color: lerp toward fade color for distant meshes
+			const fade = (1 - t) * aerialParams.fadeAmount;
+			mat.color.copy(baseColor).lerp(fadeColor, fade);
+		}
+	}
 
 	controls.update();
 	renderer.render(scene, camera);
