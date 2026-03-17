@@ -116,9 +116,9 @@ export const grainientParams = {
   centerX: 0.0,
   centerY: 0.0,
   zoom: 0.9,
-  color1: '#FF9FFC',
-  color2: '#5227FF',
-  color3: '#B19EEF',
+  color1: '#ff882b',
+  color2: '#4884e7',
+  color3: '#1250b5',
 };
 
 export function createGrainientBackground() {

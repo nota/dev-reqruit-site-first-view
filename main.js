@@ -1,7 +1,9 @@
 import GUI from "lil-gui";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import Stats from "three/addons/libs/stats.module.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { createGrainientBackground, grainientParams } from "./grainient.js";
 
 // ── Constants ──
 const MESH_COUNT = 3;
@@ -17,7 +19,18 @@ renderer.toneMappingExposure = 1.0;
 
 // ── Scene ──
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xffffff);
+
+// ── Grainient background ──
+const bg = createGrainientBackground();
+const bgRenderTarget = new THREE.WebGLRenderTarget(
+	window.innerWidth * renderer.getPixelRatio(),
+	window.innerHeight * renderer.getPixelRatio(),
+);
+bg.uniforms.iResolution.value.set(
+	window.innerWidth * renderer.getPixelRatio(),
+	window.innerHeight * renderer.getPixelRatio(),
+);
+scene.background = bgRenderTarget.texture;
 
 // ── Camera (Orthographic) ──
 const frustumSize = 3;
@@ -73,10 +86,6 @@ const turntableParams = {
 	transitionDuration: 2.0,
 };
 
-const bgParams = {
-	color: "#ffffff",
-};
-
 // ── Diamond material ──
 const diamondMaterial = new THREE.MeshPhysicalMaterial({
 	transmission: 1,
@@ -96,7 +105,7 @@ const diamondMatParams = {
 	ior: 2.42,
 	metalness: 0,
 	color: "#ffffff",
-	scale: 0.55,
+	scale: 1.1,
 	rotX: 0,
 	rotY: 0,
 	rotZ: 0,
@@ -105,6 +114,14 @@ const diamondMatParams = {
 };
 
 let diamondMesh = null;
+
+// ── Mouse tracking ──
+const mouse = { x: 0, y: 0 }; // normalized -1 to 1
+const mouseInfluence = { amount: 0.3 };
+window.addEventListener("mousemove", (e) => {
+	mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+	mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+});
 
 // ── CubeCamera for diamond reflections (added to turntable after its init) ──
 const cubeRenderTarget = new THREE.WebGLCubeRenderTarget(256, {
@@ -123,6 +140,7 @@ const meshProps = [
 
 // ── Turntable state ──
 const turntable = new THREE.Group();
+turntable.visible = false;
 scene.add(turntable);
 turntable.add(cubeCamera);
 
@@ -250,6 +268,10 @@ loader.load(
 	(error) => console.error("Error loading diamond.glb:", error),
 );
 
+// ── Stats ──
+const stats = new Stats();
+document.body.appendChild(stats.dom);
+
 // ── Controls ──
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
@@ -259,10 +281,29 @@ controls.target.set(0, 0, 0);
 // ── GUI ──
 const gui = new GUI();
 
-const bgFolder = gui.addFolder("Background");
-bgFolder.addColor(bgParams, "color").onChange((v) => {
-	scene.background.set(v);
-});
+const grainFolder = gui.addFolder("Grainient");
+grainFolder.add(grainientParams, "timeSpeed", 0, 2, 0.01);
+grainFolder.add(grainientParams, "colorBalance", -1, 1, 0.01);
+grainFolder.add(grainientParams, "warpStrength", 0.01, 5, 0.01);
+grainFolder.add(grainientParams, "warpFrequency", 0, 20, 0.1);
+grainFolder.add(grainientParams, "warpSpeed", 0, 10, 0.1);
+grainFolder.add(grainientParams, "warpAmplitude", 1, 200, 1);
+grainFolder.add(grainientParams, "blendAngle", -180, 180, 1);
+grainFolder.add(grainientParams, "blendSoftness", 0, 1, 0.01);
+grainFolder.add(grainientParams, "rotationAmount", 0, 1000, 1);
+grainFolder.add(grainientParams, "noiseScale", 0.1, 10, 0.1);
+grainFolder.add(grainientParams, "grainAmount", 0, 1, 0.01);
+grainFolder.add(grainientParams, "grainScale", 0.1, 10, 0.1);
+grainFolder.add(grainientParams, "grainAnimated");
+grainFolder.add(grainientParams, "contrast", 0.1, 3, 0.01);
+grainFolder.add(grainientParams, "gamma", 0.1, 3, 0.01);
+grainFolder.add(grainientParams, "saturation", 0, 3, 0.01);
+grainFolder.add(grainientParams, "centerX", -1, 1, 0.01);
+grainFolder.add(grainientParams, "centerY", -1, 1, 0.01);
+grainFolder.add(grainientParams, "zoom", 0.1, 3, 0.01);
+grainFolder.addColor(grainientParams, "color1");
+grainFolder.addColor(grainientParams, "color2");
+grainFolder.addColor(grainientParams, "color3");
 
 const ttFolder = gui.addFolder("Turntable");
 ttFolder.add(turntableParams, "interval", 1, 10, 0.1).name("Interval (s)");
@@ -400,6 +441,9 @@ diamondFolder
 	.add(diamondMatParams, "autoSpeed", -3, 3, 0.05)
 	.name("Auto Speed");
 diamondFolder
+	.add(mouseInfluence, "amount", 0, 1, 0.01)
+	.name("Mouse Influence");
+diamondFolder
 	.add(diamondMatParams, "transmission", 0, 1, 0.01)
 	.onChange((v) => {
 		diamondMaterial.transmission = v;
@@ -431,6 +475,10 @@ window.addEventListener("resize", () => {
 	camera.bottom = -frustumSize / 2;
 	camera.updateProjectionMatrix();
 	renderer.setSize(w, h);
+	const pw = w * renderer.getPixelRatio();
+	const ph = h * renderer.getPixelRatio();
+	bg.uniforms.iResolution.value.set(pw, ph);
+	bgRenderTarget.setSize(pw, ph);
 });
 
 // ── EaseInOutQuad ──
@@ -469,9 +517,13 @@ function animate() {
 
 	turntable.rotation.y = currentAngle;
 
-	// ── Diamond auto rotation ──
-	if (diamondMesh && diamondMatParams.autoRotate) {
-		diamondMesh.rotation.y = elapsed * diamondMatParams.autoSpeed;
+	// ── Diamond rotation (auto + mouse) ──
+	if (diamondMesh) {
+		const baseY = diamondMatParams.autoRotate
+			? elapsed * diamondMatParams.autoSpeed
+			: THREE.MathUtils.degToRad(diamondMatParams.rotY);
+		diamondMesh.rotation.x = mouse.y * mouseInfluence.amount;
+		diamondMesh.rotation.y = baseY + mouse.x * mouseInfluence.amount;
 	}
 
 	// ── Update CubeCamera for diamond reflections ──
@@ -482,8 +534,16 @@ function animate() {
 		diamondMesh.visible = true;
 	}
 
+	// ── Render grainient background ──
+	bg.uniforms.iTime.value = elapsed;
+	bg.syncUniforms();
+	renderer.setRenderTarget(bgRenderTarget);
+	renderer.render(bg.scene, bg.camera);
+	renderer.setRenderTarget(null);
+
 	controls.update();
 	renderer.render(scene, camera);
+	stats.update();
 }
 
 animate();
