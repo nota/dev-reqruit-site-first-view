@@ -68,7 +68,7 @@ const materialParams = {
 
 // ── Turntable params ──
 const turntableParams = {
-	radius: 0.5,
+	radius: 0.9,
 	interval: 3.0,
 	transitionDuration: 2.0,
 };
@@ -96,32 +96,35 @@ const diamondMatParams = {
 	ior: 2.42,
 	metalness: 0,
 	color: "#ffffff",
-	scale: 0.5,
+	scale: 0.55,
 	rotX: 0,
 	rotY: 0,
 	rotZ: 0,
+	autoRotate: true,
+	autoSpeed: 0.2,
 };
 
 let diamondMesh = null;
 
-// ── Aerial perspective params ──
-const aerialParams = {
-	enabled: true,
-	backOpacity: 0.15, // opacity for the most distant mesh
-	fadeColor: "#ffffff", // color to lerp toward (usually background)
-	fadeAmount: 0.7, // how much to lerp color toward fadeColor (0=none, 1=full)
-};
+// ── CubeCamera for diamond reflections (added to turntable after its init) ──
+const cubeRenderTarget = new THREE.WebGLCubeRenderTarget(256, {
+	generateMipmaps: true,
+	minFilter: THREE.LinearMipmapLinearFilter,
+});
+const cubeCamera = new THREE.CubeCamera(0.1, 100, cubeRenderTarget);
+diamondMaterial.envMap = cubeRenderTarget.texture;
 
 // ── Per-mesh rotation params (degrees) ──
-const meshRotations = [
-	{ rotX: 0, rotY: 0, rotZ: 0 },
-	{ rotX: 0, rotY: 120, rotZ: 0 },
-	{ rotX: 0, rotY: -32, rotZ: 90 },
+const meshProps = [
+	{ rotX: 0, rotY: 0, rotZ: 0, scale: 0.5 },
+	{ rotX: 0, rotY: 120, rotZ: 0, scale: 0.5 },
+	{ rotX: 0, rotY: -32, rotZ: 90, scale: 0.5 },
 ];
 
 // ── Turntable state ──
 const turntable = new THREE.Group();
 scene.add(turntable);
+turntable.add(cubeCamera);
 
 let currentIndex = 0;
 let targetAngle = 0;
@@ -130,7 +133,7 @@ let prevAngle = 0;
 let lastSwitchTime = 0;
 let isTransitioning = false;
 const meshes = [];
-const meshMaterials = []; // per-mesh cloned materials
+const meshBaseScales = []; // normalized scale per mesh
 
 // ── Normalize a mesh: center geometry & uniform scale ──
 function normalizeMesh(mesh) {
@@ -182,31 +185,35 @@ loader.load(
 			});
 		}
 
-		// Normalize, apply cloned material, add to turntable
+		// Normalize, apply material, add to turntable
 		meshes.forEach((mesh) => {
 			mesh.removeFromParent();
 			normalizeMesh(mesh);
-			const mat = glassMaterial.clone();
-			mat.transparent = true;
-			mesh.material = mat;
-			meshMaterials.push(mat);
+			meshBaseScales.push(mesh.scale.x); // store normalized scale
+			mesh.material = glassMaterial;
 			turntable.add(mesh);
 		});
 
 		arrangeMeshes();
 
-		// Build per-mesh rotation GUI folders
+		// Build per-mesh GUI folders
 		meshes.forEach((mesh, i) => {
-			const folder = gui.addFolder(`Mesh ${i} Rotation`);
-			const rot = meshRotations[i];
+			const folder = gui.addFolder(`Mesh ${i}`);
+			const props = meshProps[i];
 			const deg = THREE.MathUtils.degToRad;
-			const update = () => {
-				mesh.rotation.set(deg(rot.rotX), deg(rot.rotY), deg(rot.rotZ));
+			const updateRot = () => {
+				mesh.rotation.set(deg(props.rotX), deg(props.rotY), deg(props.rotZ));
 			};
-			folder.add(rot, "rotX", -180, 180, 1).name("X°").onChange(update);
-			folder.add(rot, "rotY", -180, 180, 1).name("Y°").onChange(update);
-			folder.add(rot, "rotZ", -180, 180, 1).name("Z°").onChange(update);
-			update(); // apply initial rotation
+			folder
+				.add(props, "scale", 0.1, 5, 0.05)
+				.name("Scale")
+				.onChange((v) => {
+					mesh.scale.setScalar(meshBaseScales[i] * v);
+				});
+			folder.add(props, "rotX", -180, 180, 1).name("X°").onChange(updateRot);
+			folder.add(props, "rotY", -180, 180, 1).name("Y°").onChange(updateRot);
+			folder.add(props, "rotZ", -180, 180, 1).name("Z°").onChange(updateRot);
+			updateRot();
 		});
 
 		console.log(`Loaded ${meshes.length} meshes from merge2.glb`);
@@ -235,7 +242,7 @@ loader.load(
 			geo.translate(-center.x, -center.y, -center.z);
 			diamondMesh.material = diamondMaterial;
 			diamondMesh.scale.setScalar(diamondMatParams.scale);
-			turntable.add(diamondMesh);
+			scene.add(diamondMesh);
 			console.log("Loaded diamond.glb");
 		}
 	},
@@ -309,7 +316,7 @@ const camParams = {
 	posX: 0,
 	posY: 0,
 	posZ: 15,
-	zoom: 1.8,
+	zoom: 0.1,
 };
 const camFolder = gui.addFolder("Camera");
 const updateCam = () => {
@@ -326,30 +333,24 @@ camFolder
 		camera.updateProjectionMatrix();
 	});
 
-// Helper: apply a change to glassMaterial + all clones
-function forAllMats(fn) {
-	fn(glassMaterial);
-	meshMaterials.forEach(fn);
-}
-
 const matFolder = gui.addFolder("Material");
 matFolder.add(materialParams, "transmission", 0, 1, 0.01).onChange((v) => {
-	forAllMats((m) => (m.transmission = v));
+	glassMaterial.transmission = v;
 });
 matFolder.add(materialParams, "roughness", 0, 1, 0.01).onChange((v) => {
-	forAllMats((m) => (m.roughness = v));
+	glassMaterial.roughness = v;
 });
 matFolder.add(materialParams, "thickness", 0, 5, 0.01).onChange((v) => {
-	forAllMats((m) => (m.thickness = v));
+	glassMaterial.thickness = v;
 });
 matFolder.add(materialParams, "ior", 1, 2.5, 0.01).onChange((v) => {
-	forAllMats((m) => (m.ior = v));
+	glassMaterial.ior = v;
 });
 matFolder.add(materialParams, "metalness", 0, 1, 0.01).onChange((v) => {
-	forAllMats((m) => (m.metalness = v));
+	glassMaterial.metalness = v;
 });
 matFolder.addColor(materialParams, "color").onChange((v) => {
-	forAllMats((m) => m.color.set(v));
+	glassMaterial.color.set(v);
 });
 materialParams.blending = THREE.NormalBlending;
 matFolder
@@ -362,16 +363,17 @@ matFolder
 	})
 	.name("Blending")
 	.onChange((v) => {
-		forAllMats((m) => {
-			m.blending = Number(v);
-			m.needsUpdate = true;
-		});
+		glassMaterial.blending = Number(v);
+		glassMaterial.needsUpdate = true;
 	});
 
 const diamondFolder = gui.addFolder("Diamond");
-diamondFolder.add(diamondMatParams, "scale", 0.05, 3, 0.05).name("Scale").onChange((v) => {
-	if (diamondMesh) diamondMesh.scale.setScalar(v);
-});
+diamondFolder
+	.add(diamondMatParams, "scale", 0.05, 3, 0.05)
+	.name("Scale")
+	.onChange((v) => {
+		if (diamondMesh) diamondMesh.scale.setScalar(v);
+	});
 const dDeg = THREE.MathUtils.degToRad;
 const updateDiamondRot = () => {
 	if (diamondMesh)
@@ -381,12 +383,27 @@ const updateDiamondRot = () => {
 			dDeg(diamondMatParams.rotZ),
 		);
 };
-diamondFolder.add(diamondMatParams, "rotX", -180, 180, 1).name("Rot X°").onChange(updateDiamondRot);
-diamondFolder.add(diamondMatParams, "rotY", -180, 180, 1).name("Rot Y°").onChange(updateDiamondRot);
-diamondFolder.add(diamondMatParams, "rotZ", -180, 180, 1).name("Rot Z°").onChange(updateDiamondRot);
-diamondFolder.add(diamondMatParams, "transmission", 0, 1, 0.01).onChange((v) => {
-	diamondMaterial.transmission = v;
-});
+diamondFolder
+	.add(diamondMatParams, "rotX", -180, 180, 1)
+	.name("Rot X°")
+	.onChange(updateDiamondRot);
+diamondFolder
+	.add(diamondMatParams, "rotY", -180, 180, 1)
+	.name("Rot Y°")
+	.onChange(updateDiamondRot);
+diamondFolder
+	.add(diamondMatParams, "rotZ", -180, 180, 1)
+	.name("Rot Z°")
+	.onChange(updateDiamondRot);
+diamondFolder.add(diamondMatParams, "autoRotate").name("Auto Rotate");
+diamondFolder
+	.add(diamondMatParams, "autoSpeed", -3, 3, 0.05)
+	.name("Auto Speed");
+diamondFolder
+	.add(diamondMatParams, "transmission", 0, 1, 0.01)
+	.onChange((v) => {
+		diamondMaterial.transmission = v;
+	});
 diamondFolder.add(diamondMatParams, "roughness", 0, 1, 0.01).onChange((v) => {
 	diamondMaterial.roughness = v;
 });
@@ -402,12 +419,6 @@ diamondFolder.add(diamondMatParams, "metalness", 0, 1, 0.01).onChange((v) => {
 diamondFolder.addColor(diamondMatParams, "color").onChange((v) => {
 	diamondMaterial.color.set(v);
 });
-
-const aerialFolder = gui.addFolder("Aerial Perspective");
-aerialFolder.add(aerialParams, "enabled");
-aerialFolder.add(aerialParams, "backOpacity", 0, 1, 0.01).name("Back Opacity");
-aerialFolder.addColor(aerialParams, "fadeColor").name("Fade Color");
-aerialFolder.add(aerialParams, "fadeAmount", 0, 1, 0.01).name("Fade Amount");
 
 // ── Resize ──
 window.addEventListener("resize", () => {
@@ -458,27 +469,17 @@ function animate() {
 
 	turntable.rotation.y = currentAngle;
 
-	// ── Aerial perspective: fade non-front meshes ──
-	if (aerialParams.enabled && meshMaterials.length === MESH_COUNT) {
-		const baseColor = new THREE.Color(materialParams.color);
-		const fadeColor = new THREE.Color(aerialParams.fadeColor);
-		const rotY = turntable.rotation.y;
+	// ── Diamond auto rotation ──
+	if (diamondMesh && diamondMatParams.autoRotate) {
+		diamondMesh.rotation.y = elapsed * diamondMatParams.autoSpeed;
+	}
 
-		for (let i = 0; i < MESH_COUNT; i++) {
-			// Each mesh's angle on the turntable circle
-			const meshAngle = i * TWO_PI_THIRD + rotY;
-			// cos gives how "front-facing" it is (1 = front, -1 = back)
-			const frontness = Math.cos(meshAngle);
-			// Remap from [-1, 1] to [0, 1] where 1 = fully front
-			const t = (frontness + 1) / 2;
-
-			const mat = meshMaterials[i];
-			// Opacity: lerp between backOpacity and 1
-			mat.opacity = THREE.MathUtils.lerp(aerialParams.backOpacity, 1, t);
-			// Color: lerp toward fade color for distant meshes
-			const fade = (1 - t) * aerialParams.fadeAmount;
-			mat.color.copy(baseColor).lerp(fadeColor, fade);
-		}
+	// ── Update CubeCamera for diamond reflections ──
+	if (diamondMesh) {
+		diamondMesh.visible = false;
+		cubeCamera.position.copy(diamondMesh.position);
+		cubeCamera.update(renderer, scene);
+		diamondMesh.visible = true;
 	}
 
 	controls.update();
