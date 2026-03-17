@@ -275,6 +275,7 @@ document.body.appendChild(stats.dom);
 // ── Controls ──
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
+controls.enableZoom = false;
 controls.dampingFactor = 0.05;
 controls.target.set(0, 0, 0);
 
