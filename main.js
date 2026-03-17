@@ -77,6 +77,33 @@ const bgParams = {
 	color: "#ffffff",
 };
 
+// ── Diamond material ──
+const diamondMaterial = new THREE.MeshPhysicalMaterial({
+	transmission: 1,
+	roughness: 0,
+	thickness: 1.5,
+	ior: 2.42,
+	envMapIntensity: 1.0,
+	color: new THREE.Color(0xffffff),
+	metalness: 0,
+	transparent: true,
+});
+
+const diamondMatParams = {
+	transmission: 1,
+	roughness: 0,
+	thickness: 1.5,
+	ior: 2.42,
+	metalness: 0,
+	color: "#ffffff",
+	scale: 0.5,
+	rotX: 0,
+	rotY: 0,
+	rotZ: 0,
+};
+
+let diamondMesh = null;
+
 // ── Aerial perspective params ──
 const aerialParams = {
 	enabled: true,
@@ -186,6 +213,34 @@ loader.load(
 	},
 	undefined,
 	(error) => console.error("Error loading GLB:", error),
+);
+
+// ── Load diamond.glb at turntable center ──
+loader.load(
+	"diamond.glb",
+	(gltf) => {
+		const root = gltf.scene;
+		// Find first mesh
+		root.traverse((child) => {
+			if (child.isMesh && !diamondMesh) {
+				diamondMesh = child;
+			}
+		});
+		if (diamondMesh) {
+			diamondMesh.removeFromParent();
+			// Center geometry
+			const geo = diamondMesh.geometry;
+			geo.computeBoundingBox();
+			const center = geo.boundingBox.getCenter(new THREE.Vector3());
+			geo.translate(-center.x, -center.y, -center.z);
+			diamondMesh.material = diamondMaterial;
+			diamondMesh.scale.setScalar(diamondMatParams.scale);
+			turntable.add(diamondMesh);
+			console.log("Loaded diamond.glb");
+		}
+	},
+	undefined,
+	(error) => console.error("Error loading diamond.glb:", error),
 );
 
 // ── Controls ──
@@ -312,6 +367,41 @@ matFolder
 			m.needsUpdate = true;
 		});
 	});
+
+const diamondFolder = gui.addFolder("Diamond");
+diamondFolder.add(diamondMatParams, "scale", 0.05, 3, 0.05).name("Scale").onChange((v) => {
+	if (diamondMesh) diamondMesh.scale.setScalar(v);
+});
+const dDeg = THREE.MathUtils.degToRad;
+const updateDiamondRot = () => {
+	if (diamondMesh)
+		diamondMesh.rotation.set(
+			dDeg(diamondMatParams.rotX),
+			dDeg(diamondMatParams.rotY),
+			dDeg(diamondMatParams.rotZ),
+		);
+};
+diamondFolder.add(diamondMatParams, "rotX", -180, 180, 1).name("Rot X°").onChange(updateDiamondRot);
+diamondFolder.add(diamondMatParams, "rotY", -180, 180, 1).name("Rot Y°").onChange(updateDiamondRot);
+diamondFolder.add(diamondMatParams, "rotZ", -180, 180, 1).name("Rot Z°").onChange(updateDiamondRot);
+diamondFolder.add(diamondMatParams, "transmission", 0, 1, 0.01).onChange((v) => {
+	diamondMaterial.transmission = v;
+});
+diamondFolder.add(diamondMatParams, "roughness", 0, 1, 0.01).onChange((v) => {
+	diamondMaterial.roughness = v;
+});
+diamondFolder.add(diamondMatParams, "thickness", 0, 5, 0.01).onChange((v) => {
+	diamondMaterial.thickness = v;
+});
+diamondFolder.add(diamondMatParams, "ior", 1, 3, 0.01).onChange((v) => {
+	diamondMaterial.ior = v;
+});
+diamondFolder.add(diamondMatParams, "metalness", 0, 1, 0.01).onChange((v) => {
+	diamondMaterial.metalness = v;
+});
+diamondFolder.addColor(diamondMatParams, "color").onChange((v) => {
+	diamondMaterial.color.set(v);
+});
 
 const aerialFolder = gui.addFolder("Aerial Perspective");
 aerialFolder.add(aerialParams, "enabled");
