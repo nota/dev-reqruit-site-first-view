@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import * as THREE from "three";
 
 const vertexShader = /* glsl */ `
 void main() {
@@ -87,107 +87,139 @@ void main(){
 `;
 
 export const grainientParams = {
-  timeSpeed: 0.25,
-  colorBalance: 0.0,
-  warpStrength: 1.0,
-  warpFrequency: 5.0,
-  warpSpeed: 2.0,
-  warpAmplitude: 50.0,
-  blendAngle: 0.0,
-  blendSoftness: 0.05,
-  rotationAmount: 500.0,
-  noiseScale: 2.0,
-  grainAmount: 0.1,
-  grainScale: 2.0,
-  grainAnimated: false,
-  contrast: 1.5,
-  gamma: 1.0,
-  saturation: 1.0,
-  centerX: 0.0,
-  centerY: 0.0,
-  zoom: 0.9,
-  color1: '#ff882b',
-  color2: '#4884e7',
-  color3: '#1250b5',
+	timeSpeed: 1.11,
+	colorBalance: 0.0,
+	warpStrength: 1.0,
+	warpFrequency: 5.0,
+	warpSpeed: 2.0,
+	warpAmplitude: 50.0,
+	blendAngle: 0.0,
+	blendSoftness: 0.05,
+	rotationAmount: 500.0,
+	noiseScale: 2.0,
+	grainAmount: 0.1,
+	grainScale: 2.0,
+	grainAnimated: false,
+	contrast: 1.5,
+	gamma: 1.0,
+	saturation: 1.0,
+	centerX: 0.0,
+	centerY: 0.0,
+	zoom: 0.9,
+	color1: "#ff882b",
+	color2: "#4884e7",
+	color3: "#1250b5",
 };
 
 export function createGrainientBackground() {
-  const scene = new THREE.Scene();
-  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+	const scene = new THREE.Scene();
+	const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
-  const uniforms = {
-    iTime: { value: 0 },
-    iResolution: { value: new THREE.Vector2(1, 1) },
-    uTimeSpeed: { value: grainientParams.timeSpeed },
-    uColorBalance: { value: grainientParams.colorBalance },
-    uWarpStrength: { value: grainientParams.warpStrength },
-    uWarpFrequency: { value: grainientParams.warpFrequency },
-    uWarpSpeed: { value: grainientParams.warpSpeed },
-    uWarpAmplitude: { value: grainientParams.warpAmplitude },
-    uBlendAngle: { value: grainientParams.blendAngle },
-    uBlendSoftness: { value: grainientParams.blendSoftness },
-    uRotationAmount: { value: grainientParams.rotationAmount },
-    uNoiseScale: { value: grainientParams.noiseScale },
-    uGrainAmount: { value: grainientParams.grainAmount },
-    uGrainScale: { value: grainientParams.grainScale },
-    uGrainAnimated: { value: grainientParams.grainAnimated ? 1.0 : 0.0 },
-    uContrast: { value: grainientParams.contrast },
-    uGamma: { value: grainientParams.gamma },
-    uSaturation: { value: grainientParams.saturation },
-    uCenterOffset: { value: new THREE.Vector2(grainientParams.centerX, grainientParams.centerY) },
-    uZoom: { value: grainientParams.zoom },
-    uColor1: { value: new THREE.Color().setStyle(grainientParams.color1, THREE.LinearSRGBColorSpace) },
-    uColor2: { value: new THREE.Color().setStyle(grainientParams.color2, THREE.LinearSRGBColorSpace) },
-    uColor3: { value: new THREE.Color().setStyle(grainientParams.color3, THREE.LinearSRGBColorSpace) },
-  };
+	const uniforms = {
+		iTime: { value: 0 },
+		iResolution: { value: new THREE.Vector2(1, 1) },
+		uTimeSpeed: { value: grainientParams.timeSpeed },
+		uColorBalance: { value: grainientParams.colorBalance },
+		uWarpStrength: { value: grainientParams.warpStrength },
+		uWarpFrequency: { value: grainientParams.warpFrequency },
+		uWarpSpeed: { value: grainientParams.warpSpeed },
+		uWarpAmplitude: { value: grainientParams.warpAmplitude },
+		uBlendAngle: { value: grainientParams.blendAngle },
+		uBlendSoftness: { value: grainientParams.blendSoftness },
+		uRotationAmount: { value: grainientParams.rotationAmount },
+		uNoiseScale: { value: grainientParams.noiseScale },
+		uGrainAmount: { value: grainientParams.grainAmount },
+		uGrainScale: { value: grainientParams.grainScale },
+		uGrainAnimated: { value: grainientParams.grainAnimated ? 1.0 : 0.0 },
+		uContrast: { value: grainientParams.contrast },
+		uGamma: { value: grainientParams.gamma },
+		uSaturation: { value: grainientParams.saturation },
+		uCenterOffset: {
+			value: new THREE.Vector2(
+				grainientParams.centerX,
+				grainientParams.centerY,
+			),
+		},
+		uZoom: { value: grainientParams.zoom },
+		uColor1: {
+			value: new THREE.Color().setStyle(
+				grainientParams.color1,
+				THREE.LinearSRGBColorSpace,
+			),
+		},
+		uColor2: {
+			value: new THREE.Color().setStyle(
+				grainientParams.color2,
+				THREE.LinearSRGBColorSpace,
+			),
+		},
+		uColor3: {
+			value: new THREE.Color().setStyle(
+				grainientParams.color3,
+				THREE.LinearSRGBColorSpace,
+			),
+		},
+	};
 
-  const material = new THREE.ShaderMaterial({
-    vertexShader,
-    fragmentShader,
-    uniforms,
-    depthTest: false,
-    depthWrite: false,
-  });
+	const material = new THREE.ShaderMaterial({
+		vertexShader,
+		fragmentShader,
+		uniforms,
+		depthTest: false,
+		depthWrite: false,
+	});
 
-  const geometry = new THREE.PlaneGeometry(2, 2);
-  const mesh = new THREE.Mesh(geometry, material);
-  scene.add(mesh);
+	const geometry = new THREE.PlaneGeometry(2, 2);
+	const mesh = new THREE.Mesh(geometry, material);
+	scene.add(mesh);
 
-  let _dirty = true;
+	let _dirty = true;
 
-  function markDirty() {
-    _dirty = true;
-  }
+	function markDirty() {
+		_dirty = true;
+	}
 
-  function syncTime(elapsed) {
-    uniforms.iTime.value = elapsed;
-  }
+	function syncTime(elapsed) {
+		uniforms.iTime.value = elapsed;
+	}
 
-  function syncAllUniforms() {
-    if (!_dirty) return;
-    _dirty = false;
-    uniforms.uTimeSpeed.value = grainientParams.timeSpeed;
-    uniforms.uColorBalance.value = grainientParams.colorBalance;
-    uniforms.uWarpStrength.value = grainientParams.warpStrength;
-    uniforms.uWarpFrequency.value = grainientParams.warpFrequency;
-    uniforms.uWarpSpeed.value = grainientParams.warpSpeed;
-    uniforms.uWarpAmplitude.value = grainientParams.warpAmplitude;
-    uniforms.uBlendAngle.value = grainientParams.blendAngle;
-    uniforms.uBlendSoftness.value = grainientParams.blendSoftness;
-    uniforms.uRotationAmount.value = grainientParams.rotationAmount;
-    uniforms.uNoiseScale.value = grainientParams.noiseScale;
-    uniforms.uGrainAmount.value = grainientParams.grainAmount;
-    uniforms.uGrainScale.value = grainientParams.grainScale;
-    uniforms.uGrainAnimated.value = grainientParams.grainAnimated ? 1.0 : 0.0;
-    uniforms.uContrast.value = grainientParams.contrast;
-    uniforms.uGamma.value = grainientParams.gamma;
-    uniforms.uSaturation.value = grainientParams.saturation;
-    uniforms.uCenterOffset.value.set(grainientParams.centerX, grainientParams.centerY);
-    uniforms.uZoom.value = grainientParams.zoom;
-    uniforms.uColor1.value.setStyle(grainientParams.color1, THREE.LinearSRGBColorSpace);
-    uniforms.uColor2.value.setStyle(grainientParams.color2, THREE.LinearSRGBColorSpace);
-    uniforms.uColor3.value.setStyle(grainientParams.color3, THREE.LinearSRGBColorSpace);
-  }
+	function syncAllUniforms() {
+		if (!_dirty) return;
+		_dirty = false;
+		uniforms.uTimeSpeed.value = grainientParams.timeSpeed;
+		uniforms.uColorBalance.value = grainientParams.colorBalance;
+		uniforms.uWarpStrength.value = grainientParams.warpStrength;
+		uniforms.uWarpFrequency.value = grainientParams.warpFrequency;
+		uniforms.uWarpSpeed.value = grainientParams.warpSpeed;
+		uniforms.uWarpAmplitude.value = grainientParams.warpAmplitude;
+		uniforms.uBlendAngle.value = grainientParams.blendAngle;
+		uniforms.uBlendSoftness.value = grainientParams.blendSoftness;
+		uniforms.uRotationAmount.value = grainientParams.rotationAmount;
+		uniforms.uNoiseScale.value = grainientParams.noiseScale;
+		uniforms.uGrainAmount.value = grainientParams.grainAmount;
+		uniforms.uGrainScale.value = grainientParams.grainScale;
+		uniforms.uGrainAnimated.value = grainientParams.grainAnimated ? 1.0 : 0.0;
+		uniforms.uContrast.value = grainientParams.contrast;
+		uniforms.uGamma.value = grainientParams.gamma;
+		uniforms.uSaturation.value = grainientParams.saturation;
+		uniforms.uCenterOffset.value.set(
+			grainientParams.centerX,
+			grainientParams.centerY,
+		);
+		uniforms.uZoom.value = grainientParams.zoom;
+		uniforms.uColor1.value.setStyle(
+			grainientParams.color1,
+			THREE.LinearSRGBColorSpace,
+		);
+		uniforms.uColor2.value.setStyle(
+			grainientParams.color2,
+			THREE.LinearSRGBColorSpace,
+		);
+		uniforms.uColor3.value.setStyle(
+			grainientParams.color3,
+			THREE.LinearSRGBColorSpace,
+		);
+	}
 
-  return { scene, camera, uniforms, syncTime, syncAllUniforms, markDirty };
+	return { scene, camera, uniforms, syncTime, syncAllUniforms, markDirty };
 }
