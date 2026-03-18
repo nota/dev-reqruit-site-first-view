@@ -2,6 +2,8 @@ import * as THREE from "three";
 import { createGrainientBackground } from "./grainient.js";
 import { sceneParams, cameraParams, lightParams } from "./config.js";
 
+const BG_RESOLUTION_SCALE = 0.5;
+
 export function createScene(canvas) {
 	// ── Renderer ──
 	const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -48,8 +50,10 @@ export function createScene(canvas) {
 		renderer.setSize(w, h);
 		const pw = w * renderer.getPixelRatio();
 		const ph = h * renderer.getPixelRatio();
-		bg.uniforms.iResolution.value.set(pw, ph);
-		bgRenderTarget.setSize(pw, ph);
+		const bgW = Math.max(1, (pw * BG_RESOLUTION_SCALE) | 0);
+		const bgH = Math.max(1, (ph * BG_RESOLUTION_SCALE) | 0);
+		bg.uniforms.iResolution.value.set(bgW, bgH);
+		bgRenderTarget.setSize(bgW, bgH);
 	}
 
 	// ── ResizeObserver (iframe-safe) ──
@@ -69,8 +73,8 @@ export function createScene(canvas) {
 
 	// ── Render background each frame ──
 	function renderBackground(elapsed) {
-		bg.uniforms.iTime.value = elapsed;
-		bg.syncUniforms();
+		bg.syncTime(elapsed);
+		bg.syncAllUniforms();
 		renderer.setRenderTarget(bgRenderTarget);
 		renderer.render(bg.scene, bg.camera);
 		renderer.setRenderTarget(null);

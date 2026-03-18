@@ -86,16 +86,6 @@ void main(){
 }
 `;
 
-function hexToRgb(hex) {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  if (!result) return new THREE.Color(1, 1, 1);
-  return new THREE.Color(
-    parseInt(result[1], 16) / 255,
-    parseInt(result[2], 16) / 255,
-    parseInt(result[3], 16) / 255
-  );
-}
-
 export const grainientParams = {
   timeSpeed: 0.25,
   colorBalance: 0.0,
@@ -146,9 +136,9 @@ export function createGrainientBackground() {
     uSaturation: { value: grainientParams.saturation },
     uCenterOffset: { value: new THREE.Vector2(grainientParams.centerX, grainientParams.centerY) },
     uZoom: { value: grainientParams.zoom },
-    uColor1: { value: hexToRgb(grainientParams.color1) },
-    uColor2: { value: hexToRgb(grainientParams.color2) },
-    uColor3: { value: hexToRgb(grainientParams.color3) },
+    uColor1: { value: new THREE.Color().setStyle(grainientParams.color1, THREE.LinearSRGBColorSpace) },
+    uColor2: { value: new THREE.Color().setStyle(grainientParams.color2, THREE.LinearSRGBColorSpace) },
+    uColor3: { value: new THREE.Color().setStyle(grainientParams.color3, THREE.LinearSRGBColorSpace) },
   };
 
   const material = new THREE.ShaderMaterial({
@@ -163,7 +153,19 @@ export function createGrainientBackground() {
   const mesh = new THREE.Mesh(geometry, material);
   scene.add(mesh);
 
-  function syncUniforms() {
+  let _dirty = true;
+
+  function markDirty() {
+    _dirty = true;
+  }
+
+  function syncTime(elapsed) {
+    uniforms.iTime.value = elapsed;
+  }
+
+  function syncAllUniforms() {
+    if (!_dirty) return;
+    _dirty = false;
     uniforms.uTimeSpeed.value = grainientParams.timeSpeed;
     uniforms.uColorBalance.value = grainientParams.colorBalance;
     uniforms.uWarpStrength.value = grainientParams.warpStrength;
@@ -182,10 +184,10 @@ export function createGrainientBackground() {
     uniforms.uSaturation.value = grainientParams.saturation;
     uniforms.uCenterOffset.value.set(grainientParams.centerX, grainientParams.centerY);
     uniforms.uZoom.value = grainientParams.zoom;
-    uniforms.uColor1.value.copy(hexToRgb(grainientParams.color1));
-    uniforms.uColor2.value.copy(hexToRgb(grainientParams.color2));
-    uniforms.uColor3.value.copy(hexToRgb(grainientParams.color3));
+    uniforms.uColor1.value.setStyle(grainientParams.color1, THREE.LinearSRGBColorSpace);
+    uniforms.uColor2.value.setStyle(grainientParams.color2, THREE.LinearSRGBColorSpace);
+    uniforms.uColor3.value.setStyle(grainientParams.color3, THREE.LinearSRGBColorSpace);
   }
 
-  return { scene, camera, uniforms, syncUniforms };
+  return { scene, camera, uniforms, syncTime, syncAllUniforms, markDirty };
 }

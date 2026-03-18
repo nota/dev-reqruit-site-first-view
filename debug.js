@@ -20,28 +20,29 @@ export async function createDebugUI({ scene: sceneCtx, diamond }) {
 
 	// ── Grainient ──
 	const grainFolder = gui.addFolder("Grainient");
-	grainFolder.add(grainientParams, "timeSpeed", 0, 2, 0.01);
-	grainFolder.add(grainientParams, "colorBalance", -1, 1, 0.01);
-	grainFolder.add(grainientParams, "warpStrength", 0.01, 5, 0.01);
-	grainFolder.add(grainientParams, "warpFrequency", 0, 20, 0.1);
-	grainFolder.add(grainientParams, "warpSpeed", 0, 10, 0.1);
-	grainFolder.add(grainientParams, "warpAmplitude", 1, 200, 1);
-	grainFolder.add(grainientParams, "blendAngle", -180, 180, 1);
-	grainFolder.add(grainientParams, "blendSoftness", 0, 1, 0.01);
-	grainFolder.add(grainientParams, "rotationAmount", 0, 1000, 1);
-	grainFolder.add(grainientParams, "noiseScale", 0.1, 10, 0.1);
-	grainFolder.add(grainientParams, "grainAmount", 0, 1, 0.01);
-	grainFolder.add(grainientParams, "grainScale", 0.1, 10, 0.1);
-	grainFolder.add(grainientParams, "grainAnimated");
-	grainFolder.add(grainientParams, "contrast", 0.1, 3, 0.01);
-	grainFolder.add(grainientParams, "gamma", 0.1, 3, 0.01);
-	grainFolder.add(grainientParams, "saturation", 0, 3, 0.01);
-	grainFolder.add(grainientParams, "centerX", -1, 1, 0.01);
-	grainFolder.add(grainientParams, "centerY", -1, 1, 0.01);
-	grainFolder.add(grainientParams, "zoom", 0.1, 3, 0.01);
-	grainFolder.addColor(grainientParams, "color1");
-	grainFolder.addColor(grainientParams, "color2");
-	grainFolder.addColor(grainientParams, "color3");
+	const markBgDirty = () => sceneCtx.bg.markDirty();
+	grainFolder.add(grainientParams, "timeSpeed", 0, 2, 0.01).onChange(markBgDirty);
+	grainFolder.add(grainientParams, "colorBalance", -1, 1, 0.01).onChange(markBgDirty);
+	grainFolder.add(grainientParams, "warpStrength", 0.01, 5, 0.01).onChange(markBgDirty);
+	grainFolder.add(grainientParams, "warpFrequency", 0, 20, 0.1).onChange(markBgDirty);
+	grainFolder.add(grainientParams, "warpSpeed", 0, 10, 0.1).onChange(markBgDirty);
+	grainFolder.add(grainientParams, "warpAmplitude", 1, 200, 1).onChange(markBgDirty);
+	grainFolder.add(grainientParams, "blendAngle", -180, 180, 1).onChange(markBgDirty);
+	grainFolder.add(grainientParams, "blendSoftness", 0, 1, 0.01).onChange(markBgDirty);
+	grainFolder.add(grainientParams, "rotationAmount", 0, 1000, 1).onChange(markBgDirty);
+	grainFolder.add(grainientParams, "noiseScale", 0.1, 10, 0.1).onChange(markBgDirty);
+	grainFolder.add(grainientParams, "grainAmount", 0, 1, 0.01).onChange(markBgDirty);
+	grainFolder.add(grainientParams, "grainScale", 0.1, 10, 0.1).onChange(markBgDirty);
+	grainFolder.add(grainientParams, "grainAnimated").onChange(markBgDirty);
+	grainFolder.add(grainientParams, "contrast", 0.1, 3, 0.01).onChange(markBgDirty);
+	grainFolder.add(grainientParams, "gamma", 0.1, 3, 0.01).onChange(markBgDirty);
+	grainFolder.add(grainientParams, "saturation", 0, 3, 0.01).onChange(markBgDirty);
+	grainFolder.add(grainientParams, "centerX", -1, 1, 0.01).onChange(markBgDirty);
+	grainFolder.add(grainientParams, "centerY", -1, 1, 0.01).onChange(markBgDirty);
+	grainFolder.add(grainientParams, "zoom", 0.1, 3, 0.01).onChange(markBgDirty);
+	grainFolder.addColor(grainientParams, "color1").onChange(markBgDirty);
+	grainFolder.addColor(grainientParams, "color2").onChange(markBgDirty);
+	grainFolder.addColor(grainientParams, "color3").onChange(markBgDirty);
 
 	// ── Light ──
 	const lightFolder = gui.addFolder("Light");
