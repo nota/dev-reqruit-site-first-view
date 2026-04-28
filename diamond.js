@@ -30,13 +30,14 @@ export function createDiamond(scene, renderer) {
 		scene.add(cubeCamera);
 	}
 
-	// ── Mouse tracking ──
+	// ── Mouse tracking (canvas-local for iframe compatibility) ──
 	const mouse = { x: 0, y: 0 };
-	function onMouseMove(e) {
-		mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-		mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+	const canvas = renderer.domElement;
+	function onPointerMove(e) {
+		mouse.x = (e.offsetX / canvas.clientWidth) * 2 - 1;
+		mouse.y = -(e.offsetY / canvas.clientHeight) * 2 + 1;
 	}
-	window.addEventListener("mousemove", onMouseMove);
+	canvas.addEventListener("pointermove", onPointerMove);
 
 	// ── Load diamond.glb ──
 	let mesh = null;
@@ -90,7 +91,7 @@ export function createDiamond(scene, renderer) {
 	}
 
 	function dispose() {
-		window.removeEventListener("mousemove", onMouseMove);
+		canvas.removeEventListener("pointermove", onPointerMove);
 		if (mesh) {
 			mesh.geometry.dispose();
 			material.dispose();
