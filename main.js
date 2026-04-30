@@ -36,12 +36,13 @@ document.addEventListener("visibilitychange", () => {
 });
 
 // ── Animation loop ──
+let bgFrame = 0;
 function animate() {
 	animationId = requestAnimationFrame(animate);
 	const elapsed = clock.getElapsedTime();
 
 	diamond.update(elapsed);
-	sceneCtx.renderBackground(elapsed);
+	if (bgFrame++ % 2 === 0) sceneCtx.renderBackground(elapsed);
 	sceneCtx.render();
 
 	if (debug) debug.update();
