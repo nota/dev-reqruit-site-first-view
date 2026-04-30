@@ -45,11 +45,8 @@ export function createDiamond(scene, renderer) {
 	function onMessage(e) {
 		const d = e.data;
 		if (!d || d.type !== "mousemove") return;
-		const newX = (d.relativeX / canvas.clientWidth) * 2 - 1;
-		const newY = -(d.relativeY / canvas.clientHeight) * 2 + 1;
-		console.log("[diamond] postMessage received", { relativeX: d.relativeX, relativeY: d.relativeY, newX, newY, canvasW: canvas.clientWidth, canvasH: canvas.clientHeight });
-		mouse.x = newX;
-		mouse.y = newY;
+		mouse.x = (d.relativeX / canvas.clientWidth) * 2 - 1;
+		mouse.y = -(d.relativeY / canvas.clientHeight) * 2 + 1;
 	}
 	window.addEventListener("message", onMessage);
 
